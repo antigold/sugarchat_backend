@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // === rooms ===
 
 // GET /rooms
-router.get("/rooms", async (req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   try {
     const rooms = await prisma.room.findMany();
     res.json(rooms);
@@ -20,7 +20,7 @@ router.get("/rooms", async (req: Request, res: Response) => {
 });
 
 // GET /rooms/:id
-router.get("/rooms/:id", async (req: Request, res: Response) => {
+router.get("/:id", async (req: Request, res: Response) => {
   const { id } = req.params; //get the :id from the url
   if (!isUuid(id)) return res.status(400).json({ error: "invalid uuid" });
   try {
@@ -41,7 +41,7 @@ router.get("/rooms/:id", async (req: Request, res: Response) => {
 
 // curl -X PUT http://127.0.0.1:1300/rooms -H "Content-Type: routerlication/json" -d '{"roomName":"general"}'
 // PUT /rooms  (expects { roomName })
-router.put("/rooms", async (req: Request, res: Response) => {
+router.put("/", async (req: Request, res: Response) => {
   //create room
   try {
     const { roomName, roomImage } = req.body;
@@ -63,7 +63,7 @@ router.put("/rooms", async (req: Request, res: Response) => {
 });
 
 // GET /rooms/:id/users
-router.get("/rooms/:id/users", async (req, res) => {
+router.get("/:id/users", async (req, res) => {
   // list users of a room
   const { id } = req.params; //get the :id from the url
 
@@ -89,7 +89,7 @@ router.get("/rooms/:id/users", async (req, res) => {
 });
 
 // POST /rooms/:id/join
-router.post("/rooms/:id/join", async (req, res) => {
+router.post("/:id/join", async (req, res) => {
   // join a room
   const { id } = req.params; //get the :id from the url
   const { userId } = req.body; //user 
@@ -121,6 +121,56 @@ router.post("/rooms/:id/join", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "database error" });
+  }
+});
+
+// GET /rooms/:id/messages
+router.get("/:id/messages", async (req, res) => {
+  // get messages from a room
+  const { id } = req.params; //get the :id from the url
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid uuid" });
+  try {
+    //check if uuid exists in rooms
+    const room = await prisma.room.findUnique({
+      where: { id },
+    });
+
+    if (!room) return res.status(404).json({ error: "room not found" });
+
+    const messages = await prisma.message.findMany({ where: { roomId : id },include: { owner: true }});
+    res.json(messages);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to fetch room" });
+  }
+});
+
+// ! to find a message
+// const num = Number(value);
+// if (Number.isInteger(num)) {
+//   console.log("valid integer id");
+// }
+
+// POST /rooms/:id/messages  (expects { text })
+router.post("/:id/messages", async (req, res) => {
+  // post a message
+  const { id } = req.params; //get the :id from the url
+  if (!isUuid(id)) return res.status(400).json({ error: "invalid uuid" });
+  const { text, owner, room } = req.body;
+  if (!text || !owner) return res.status(400).json({ error: "text or owner is required" });
+  try {
+    const message = await prisma.message.create({
+      data: {
+        text: text,
+        ownerId: owner,
+        roomId: room,
+      },
+    });
+
+    res.json(message);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to create message" });
   }
 });
 

@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4, validate as isUuid } from "uuid";
 import bcrypt from "bcryptjs";
+import { signToken, verifyToken } from "./auth";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -11,8 +12,44 @@ const prisma = new PrismaClient();
 
 // === users ===
 
+// login
+router.post("/login", async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+  const user = await prisma.user.findUnique({ where: { username } });
+
+  if (!user) return res.status(401).json({ error: "invalid credentials" });
+
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) return res.status(401).json({ error: "invalid credentials" });
+
+  const token = signToken(user.id);
+  res.json({ token });
+});
+
+// register
+router.post("/register", async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+  const hash = await bcrypt.hash(password, 10);
+  const user = await prisma.user.create({
+    data: { username, passwordHash: hash }
+  });
+  const token = signToken(user.id);
+  res.json({ token });
+});
+
+router.get("/me", async (req: Request, res: Response) => {
+  const auth = req.headers.authorization?.split(" ")[1];
+  if (!auth) return res.status(401).json({ error: "no token" });
+
+  const payload = verifyToken(auth);
+  if (!payload) return res.status(401).json({ error: "invalid token" });
+
+  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+  res.json(user);
+});
+
 // GET /users
-router.get("/users", async (req, res) => {
+router.get("/", async (req, res) => {
   // list all users
   try {
     const users = await prisma.user.findMany();
@@ -24,7 +61,7 @@ router.get("/users", async (req, res) => {
 });
 
 // PUT /users  (expects { name, password })
-router.put("/users", async (req, res) => {
+router.put("/", async (req, res) => {
   // create a member
   try {
     const { username, password, displayName = username } = req.body;
@@ -50,7 +87,7 @@ router.put("/users", async (req, res) => {
 });
 
 // GET /users/:id/passwordcheck
-router.get("/users/:id/passwordcheck", async (req, res) => {
+router.get("/:id/passwordcheck", async (req, res) => {
   // dev: check password
   const { id } = req.params; //get the :id from the url
   const { password } = req.body; //password
@@ -72,7 +109,7 @@ router.get("/users/:id/passwordcheck", async (req, res) => {
 });
 
 // GET /users/:id/name
-router.get("/users/:id/name", async (req, res) => {
+router.get("/:id/name", async (req, res) => {
   const { id } = req.params; //get the :id from the url
   try {
     //check if uuid exists in db
