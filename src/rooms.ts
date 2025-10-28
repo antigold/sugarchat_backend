@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4, validate as isUuid } from "uuid";
+import { authMiddleware } from "./auth";
+
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -9,15 +11,26 @@ const prisma = new PrismaClient();
 // === rooms ===
 
 // GET /rooms
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", authMiddleware, async (req: Request, res: Response) => {
+  const userId = (req as any).userId;
+
   try {
-    const rooms = await prisma.room.findMany();
+    const rooms = await prisma.room.findMany({
+      include: {
+        members: {
+          where: { userId },       // filter only current user’s memberships
+          include: { user: true }  // include user info if you want
+        }
+      }
+    });
+
     res.json(rooms);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to fetch rooms" });
   }
 });
+
 
 // GET /rooms/:id
 router.get("/:id", async (req: Request, res: Response) => {
@@ -173,5 +186,44 @@ router.post("/:id/messages", async (req, res) => {
     res.status(500).json({ error: "failed to create message" });
   }
 });
+
+// ! check this
+// ! check this
+// ! check this
+// ! check this
+// ! check this
+// ! check this check chat gpt
+// ! check this
+// ! check this
+// ! check this
+// ! check this
+// ! check this
+// ! check this
+router.post("/join/:roomId", authMiddleware, async (req: Request, res: Response) => {
+  const userId = (req as any).userId;
+  const { roomId } = req.params;
+
+  try {
+    // check if already joined
+    const existing = await prisma.roomMember.findUnique({
+      where: {
+        roomId_userId: { roomId, userId }
+      }
+    });
+
+    if (existing) return res.status(400).json({ error: "already a member" });
+
+    const membership = await prisma.roomMember.create({
+      data: { roomId, userId },
+      include: { user: true, room: true }
+    });
+
+    res.json(membership);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to join room" });
+  }
+});
+
 
 export default router;
