@@ -16,13 +16,18 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
 
   try {
     const rooms = await prisma.room.findMany({
+      where: {
+        members: {
+          some: { userId }  //only rooms that have this user
+        }
+      },
       include: {
         members: {
-          where: { userId },       // filter only current user’s memberships
-          include: { user: true }  // include user info if you want
+          include: { user: true }
         }
       }
     });
+
 
     res.json(rooms);
   } catch (err) {
@@ -187,18 +192,6 @@ router.post("/:id/messages", async (req, res) => {
   }
 });
 
-// ! check this
-// ! check this
-// ! check this
-// ! check this
-// ! check this
-// ! check this check chat gpt
-// ! check this
-// ! check this
-// ! check this
-// ! check this
-// ! check this
-// ! check this
 router.post("/join/:roomId", authMiddleware, async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const { roomId } = req.params;
